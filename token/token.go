@@ -40,8 +40,8 @@ const (
 	TRUE     = "TRUE"
 	FALSE    = "FALSE"
 
-	EQ    = "=="
-	NOTEQ = "!="
+	EQ     = "=="
+	NOT_EQ = "!="
 )
 
 var keywords = map[string]TokenType{
