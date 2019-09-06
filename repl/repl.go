@@ -2,11 +2,10 @@ package repl
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 
 	"github.com/magicly/monkey-go/lexer"
-	"github.com/magicly/monkey-go/token"
+	"github.com/magicly/monkey-go/parser"
 )
 
 const PROMPT = ">> "
@@ -22,8 +21,20 @@ func Start(in io.Reader, out io.Writer) {
 		}
 		line := scanner.Text()
 		l := lexer.New(line)
-		for tok := l.NextToken(); tok.Type != token.EOF; tok = l.NextToken() {
-			fmt.Printf("%+v\n", tok)
+		p := parser.New(l)
+
+		program := p.ParseProgram()
+		if len(p.Errors()) != 0 {
+			printParseError(out, p.Errors())
 		}
+
+		io.WriteString(out, program.String())
+		io.WriteString(out, "\n")
+	}
+
+}
+func printParseError(out io.Writer, errors []string) {
+	for _, err := range errors {
+		io.WriteString(out, "\t"+err+"\n")
 	}
 }
