@@ -6,6 +6,7 @@ import (
 
 	"github.com/magicly/monkey-go/evaluator"
 	"github.com/magicly/monkey-go/lexer"
+	"github.com/magicly/monkey-go/object"
 	"github.com/magicly/monkey-go/parser"
 )
 
@@ -13,6 +14,7 @@ const PROMPT = ">> "
 
 func Start(in io.Reader, out io.Writer) {
 	scanner := bufio.NewScanner(in)
+	env := object.NewEnv()
 
 	for {
 		print(PROMPT)
@@ -29,7 +31,7 @@ func Start(in io.Reader, out io.Writer) {
 			printParseError(out, p.Errors())
 		}
 
-		result := evaluator.Eval(program)
+		result := evaluator.Eval(program, env)
 		if result != nil {
 			io.WriteString(out, result.Inspect())
 			io.WriteString(out, "\n")
