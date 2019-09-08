@@ -21,7 +21,7 @@ func TestEvalIntegerExpression(t *testing.T) {
 		{"2 * 2 * 2 * 2 * 2", 32},
 		{"-50 + 100 + -50", 0},
 		{"5 * 2 + 10", 20},
-		{"5 + 2 * 10", 25},
+		{"2; 5 + 2 * 10", 25},
 		{"20 + 2 * -10", 0},
 		{"50 / 2 * 2 + 10", 60},
 		{"2 * (5 + 10)", 30},
@@ -38,7 +38,7 @@ func TestEvalIntegerExpression(t *testing.T) {
 func testEval(input string) object.Object {
 	l := lexer.New(input)
 	p := parser.New(l)
-	program := p.ParseStatement()
+	program := p.ParseProgram()
 	return Eval(program)
 }
 
@@ -144,5 +144,59 @@ func TestIfElseExpression(t *testing.T) {
 }
 
 func testNullObject(t *testing.T, obj object.Object) bool {
+	if obj != NULL {
+		t.Errorf("Null should be NULL. but got=%T", obj)
+	}
 	return obj == NULL
+}
+
+func TestReturnStatements(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected int64
+	}{
+		{"return 10;", 10},
+		{"return 10; 9;", 10},
+		{"return 2 * 5; 9;", 10},
+		{"9; return 2 * 5; 9;", 10},
+		{`if (10 > 1) { if (10>1) { return 10;} return 1;}`, 10},
+	}
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testIntegerObject(t, evaluated, tt.expected)
+	}
+}
+
+func TestErrorHandling(t *testing.T) {
+	tests := []struct {
+		input           string
+		expectedMessage string
+	}{
+		{"5 + true;", "type mismatch: INTEGER + BOOLEAN"},
+		{"5 + true; 5;", "type mismatch: INTEGER + BOOLEAN"},
+		{"-true", "unknown operator: -BOOLEAN"},
+		{"true + false", "unknown operator: BOOLEAN + BOOLEAN"},
+		{"5; true + false; 5", "unknown operator: BOOLEAN + BOOLEAN"},
+		{"if (10 > 1) { true + false; }", "unknown operator: BOOLEAN + BOOLEAN"},
+		{`if (10 > 1) { 
+      if (10 > 1) {
+				return true + false;	
+			}
+			return 1;
+			}`, "unknown operator: BOOLEAN + BOOLEAN"},
+	}
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("no error object returned. got=%T(%+v)",
+				evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expectedMessage {
+			t.Errorf("wrong error message. expected=%q, got=%q",
+				tt.expectedMessage, errObj.Message)
+		}
+	}
 }
