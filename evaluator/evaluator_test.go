@@ -35,6 +35,21 @@ func TestEvalIntegerExpression(t *testing.T) {
 	}
 }
 
+func TestEvalStringExpression(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{`"5"`, "5"},
+		{`"hello monkey"`, "hello monkey"},
+		{`"hello" + " monkey"`, "hello monkey"},
+	}
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testStringObject(t, evaluated, tt.expected)
+	}
+}
+
 func testEval(input string) object.Object {
 	l := lexer.New(input)
 	p := parser.New(l)
@@ -55,7 +70,18 @@ func testIntegerObject(t *testing.T, obj object.Object, expected int64) bool {
 		return false
 	}
 	return true
-
+}
+func testStringObject(t *testing.T, obj object.Object, expected string) bool {
+	result, ok := obj.(*object.String)
+	if !ok {
+		t.Errorf("object is not String. got=%T(%+v)", obj, obj)
+		return false
+	}
+	if result.Value != expected {
+		t.Errorf("object has wrong value! got=%s, want=%s", result.Value, expected)
+		return false
+	}
+	return true
 }
 
 func TestEvalBooleanExpression(t *testing.T) {
@@ -187,7 +213,7 @@ func TestErrorHandling(t *testing.T) {
 			return 1;
 			}`, "unknown operator: BOOLEAN + BOOLEAN"},
 		{"foobar", "identifier not found: foobar"},
-		// {`"Hello" - "World"`, "unknown operator: STRING - STRING"},
+		{`"Hello" - "World"`, "unknown operator: STRING - STRING"},
 	}
 	for _, tt := range tests {
 		evaluated := testEval(tt.input)
@@ -269,4 +295,33 @@ let addTwo = newAdder(2);
 addTwo(2);
 `
 	testIntegerObject(t, testEval(input), 4)
+}
+
+func TestBuiltinFunction(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{`len("")`, 0},
+		{`len("four")`, 4},
+		{`len("hello world")`, 11},
+		{`len(1)`, "argument to `len` not supported, got=INTEGER"},
+		{`len("one", "two")`, "wrong number of arguments. got=2, want=1"},
+	}
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		switch expected := tt.expected.(type) {
+		case int:
+			testIntegerObject(t, evaluated, int64(expected))
+		case string:
+			errObj, ok := evaluated.(*object.Error)
+			if !ok {
+				t.Errorf("object is not Error, got=%T(%+v)", evaluated, evaluated)
+			}
+			if errObj.Message != expected {
+				t.Errorf("wrong err messsage. expected=%q, got=%q", expected, errObj.Message)
+			}
+		}
+	}
 }

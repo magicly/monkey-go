@@ -10,12 +10,27 @@ import (
 
 const (
 	INTERGER_OBJ     = "INTEGER"
+	STRING_OBJ       = "STRING"
 	BOOLEAN_OBJ      = "BOOLEAN"
 	NULL_OBJ         = "NULL"
 	RETURN_VALUE_OBJ = "RETURN_VALUE_OBJ"
 	ERROR_OBJ        = "ERROR"
 	FUNCTION_OBJ     = "FUNCTION"
+	BUILTIN_OBJ      = "BUILTIN"
 )
+
+type BuiltinFunction func(args ...Object) Object
+
+type Builtin struct {
+	Fn BuiltinFunction
+}
+
+func (b *Builtin) Inspect() string {
+	return "builtin function"
+}
+func (b *Builtin) Type() ObjectType {
+	return BUILTIN_OBJ
+}
 
 type ObjectType string
 
@@ -33,6 +48,17 @@ func (i *Integer) Inspect() string {
 }
 func (i *Integer) Type() ObjectType {
 	return INTERGER_OBJ
+}
+
+type String struct {
+	Value string
+}
+
+func (s *String) Inspect() string {
+	return s.Value
+}
+func (s *String) Type() ObjectType {
+	return STRING_OBJ
 }
 
 type Boolean struct {

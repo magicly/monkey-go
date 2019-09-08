@@ -21,6 +21,8 @@ func Eval(node ast.Node, env *object.Env) object.Object {
 		return Eval(node.Expression, env)
 	case *ast.IntegerLiteral:
 		return &object.Integer{Value: node.Value}
+	case *ast.StringLiteral:
+		return &object.String{Value: node.Value}
 	case *ast.Boolean:
 		return nativeBoolToBooleanObject(node.Value)
 	case *ast.PrefixExpression:
@@ -78,13 +80,15 @@ func Eval(node ast.Node, env *object.Env) object.Object {
 }
 
 func applyFunction(function object.Object, args []object.Object) object.Object {
-	fn, ok := function.(*object.Function)
-	if !ok {
+	switch fn := function.(type) {
+	case *object.Function:
+		env := bindArgs(args, fn)
+		return evalStatements(fn.Body.Statements, env)
+	case *object.Builtin:
+		return fn.Fn(args...)
+	default:
 		return newError("not a function: %s", function.Type())
 	}
-
-	env := bindArgs(args, fn)
-	return evalStatements(fn.Body.Statements, env)
 }
 
 func bindArgs(args []object.Object, fn *object.Function) *object.Env {
@@ -112,11 +116,15 @@ func evalExpressions(exps []ast.Expression, env *object.Env) []object.Object {
 }
 
 func evalIdentifier(node *ast.Identifier, env *object.Env) object.Object {
-	val, ok := env.Get(node.Value)
-	if !ok {
-		return newError("identifier not found: " + node.Value)
+	if val, ok := env.Get(node.Value); ok {
+		return val
 	}
-	return val
+
+	if builtin, ok := builtins[node.Value]; ok {
+		return builtin
+	}
+
+	return newError("identifier not found: " + node.Value)
 }
 
 func isError(obj object.Object) bool {
@@ -158,8 +166,20 @@ func evalInfixExpression(op string, left object.Object, right object.Object) obj
 		return evalIntegerInfixExpression(op, left, right)
 	case left.Type() == object.BOOLEAN_OBJ && right.Type() == object.BOOLEAN_OBJ:
 		return evalBooleanInfixExpression(op, left, right)
+	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
+		return evalStringInfixExpression(op, left, right)
 	case left.Type() != right.Type():
 		return newError("type mismatch: %s %s %s", left.Type(), op, right.Type())
+	default:
+		return newError("unknown operator: %s %s %s", left.Type(), op, right.Type())
+	}
+}
+func evalStringInfixExpression(op string, left object.Object, right object.Object) object.Object {
+	lv := left.(*object.String).Value
+	rv := right.(*object.String).Value
+	switch op {
+	case "+":
+		return &object.String{Value: lv + rv}
 	default:
 		return newError("unknown operator: %s %s %s", left.Type(), op, right.Type())
 	}
