@@ -75,8 +75,88 @@ func Eval(node ast.Node, env *object.Env) object.Object {
 		}
 
 		return applyFunction(function, args)
+	case *ast.ArrayLiteral:
+		elements := evalExpressions(node.Elements, env)
+		if len(elements) == 1 && isError(elements[0]) {
+			return elements[0]
+		}
+
+		return &object.Array{Elements: elements}
+	case *ast.IndexExpression:
+		left := Eval(node.Left, env)
+		if isError(left) {
+			return left
+		}
+		index := Eval(node.Index, env)
+		if isError(index) {
+			return index
+		}
+		return evalIndexExpression(left, index)
+	case *ast.HashLiteral:
+		return evalHashLiteral(node.Pairs, env)
 	}
 	return NULL
+}
+
+func evalHashLiteral(pairs map[ast.Expression]ast.Expression, env *object.Env) object.Object {
+	result := make(map[object.HashKey]object.HashPair)
+
+	for ke, ve := range pairs {
+		ko := Eval(ke, env)
+		if isError(ko) {
+			return ko
+		}
+
+		hashKey, ok := ko.(object.Hashable)
+		if !ok {
+			return newError("unusable as hash key: %s", ko.Type())
+		}
+
+		vo := Eval(ve, env)
+		if isError(vo) {
+			return vo
+		}
+
+		result[hashKey.HashKey()] = object.HashPair{Key: ko, Value: vo}
+	}
+
+	return &object.Hash{Pairs: result}
+}
+
+func evalIndexExpression(left object.Object, index object.Object) object.Object {
+	switch {
+	case left.Type() == object.ARRAY_OBJ && index.Type() == object.INTERGER_OBJ:
+		return evalArrayIndexExpression(left, index)
+	case left.Type() == object.HASH_OBJ:
+		return evalHashIndexExpression(left, index)
+	default:
+		return newError("index operator not supported: %s", left.Type())
+	}
+}
+func evalHashIndexExpression(left object.Object, index object.Object) object.Object {
+	hash := left.(*object.Hash)
+
+	key, ok := index.(object.Hashable)
+	if !ok {
+		return newError("unusable as hash key: %s", index.Type())
+	}
+
+	pair, ok := hash.Pairs[key.HashKey()]
+	if !ok {
+		return NULL
+	}
+
+	return pair.Value
+}
+func evalArrayIndexExpression(left object.Object, index object.Object) object.Object {
+	arr := left.(*object.Array)
+	idx := index.(*object.Integer)
+
+	if idx.Value < 0 || idx.Value >= int64(len(arr.Elements)) {
+		return NULL
+	}
+
+	return arr.Elements[idx.Value]
 }
 
 func applyFunction(function object.Object, args []object.Object) object.Object {
@@ -161,6 +241,12 @@ func truthy(obj object.Object) bool {
 }
 
 func evalInfixExpression(op string, left object.Object, right object.Object) object.Object {
+	if left.Type() == object.RETURN_VALUE_OBJ {
+		left = left.(*object.ReturnValue).Value
+	}
+	if right.Type() == object.RETURN_VALUE_OBJ {
+		right = right.(*object.ReturnValue).Value
+	}
 	switch {
 	case left.Type() == object.INTERGER_OBJ && right.Type() == object.INTERGER_OBJ:
 		return evalIntegerInfixExpression(op, left, right)
